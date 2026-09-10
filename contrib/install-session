@@ -34,6 +34,7 @@ def main():
     config_home = Path(os.environ.get("XDG_CONFIG_HOME", home / ".config"))
     base_config = config_home / "sway/config"
     config = config_home / "sway-rounded/config"
+    appearance = config.parent / "appearance.conf"
     desktop = prefix / "sway-rounded.desktop"
     system_desktop = Path("/usr/local/share/wayland-sessions/sway-rounded.desktop")
     if not base_config.is_file():
@@ -142,12 +143,15 @@ DesktopNames=sway;wlroots
         stage.rename(release)
 
     config.parent.mkdir(parents=True, exist_ok=True)
+    if not appearance.exists():
+        shutil.copy2(ROOT / "contrib/appearance.conf", appearance)
     if not config.exists():
         config.write_text("# Shared settings stay in the original config; only this session enables rounding.\n"
                           f"include {json.dumps(str(base_config))}\n"
                           "floating_corner_radius 20\n"
                           "tiled_corner_radius 20\n"
-                          "xwayland enable\n")
+                          "xwayland enable\n"
+                          f"include {json.dumps(str(appearance))}\n")
     launcher.parent.mkdir(parents=True, exist_ok=True)
     launcher.write_text(launcher_text)
     launcher.chmod(0o755)

@@ -78,6 +78,15 @@ it prepares everything and prints that final administrator command instead.
   rounding and Xwayland support. Existing config files are not overwritten.
 * Session logs go to `~/.local/state/sway-rounded/`.
 
+The separate session's `appearance.conf` provides live corner-radius presets:
+**Alt+Ctrl+0** disables rounding, **Alt+Ctrl+1** sets 10 pixels,
+**Alt+Ctrl+2** sets 20 pixels, and **Alt+Ctrl+3** sets 30 pixels.
+These affect both tiled and floating windows without reloading the config or
+rerunning startup commands. Preset selections last until logout or a full
+config reload; the radius settings in `config` remain the startup defaults.
+Existing installations can include `~/.config/sway-rounded/appearance.conf`
+from their separate session config. The installer preserves custom presets.
+
 Save your work, log out, and choose **Sway Rounded (1.12)** in the login screen's
 session selector. Choose **Sway** to return to the stock compositor. The
 installer does not log you out, restart GDM, change auto-login, or select a

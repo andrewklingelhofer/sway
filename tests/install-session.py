@@ -21,6 +21,10 @@ with tempfile.TemporaryDirectory(prefix="sway session test-") as directory:
     assert "TryExec=" not in (prefix / "sway-rounded.desktop").read_text()
     launcher = home / ".local/bin/sway-rounded"
     config = config_home / "sway-rounded/config"
+    appearance = config_home / "sway-rounded/appearance.conf"
+    assert appearance.read_bytes() == (ROOT / "contrib/appearance.conf").read_bytes()
+    appearance.write_text(appearance.read_text() + "# Keep custom presets.\n")
+    presets = appearance.read_bytes()
     original = base.read_bytes()
     config.write_text(config.read_text() + "# Preserve custom session settings.\n")
     custom = config.read_bytes()
@@ -29,6 +33,7 @@ with tempfile.TemporaryDirectory(prefix="sway session test-") as directory:
     second = (prefix / "current").resolve()
     assert second != first and first.is_dir()
     assert base.read_bytes() == original and config.read_bytes() == custom
+    assert appearance.read_bytes() == presets
 
     runtime_dir = home / "run"
     runtime_dir.mkdir(mode=0o700)
