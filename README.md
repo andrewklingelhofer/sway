@@ -84,6 +84,12 @@ The separate session's `appearance.conf` provides live corner-radius presets:
 These affect both tiled and floating windows without reloading the config or
 rerunning startup commands. Preset selections last until logout or a full
 config reload; the radius settings in `config` remain the startup defaults.
+Window-spacing presets affect the current workspace's tiled windows:
+**Alt+Ctrl+4** removes gaps, **Alt+Ctrl+5** sets 8 pixels,
+**Alt+Ctrl+6** sets 16 pixels, and **Alt+Ctrl+7** sets 24 pixels.
+They leave terminal content padding and floating-window sizes unchanged.
+These gap choices are temporary; they do not change saved startup defaults.
+
 Existing installations can include `~/.config/sway-rounded/appearance.conf`
 from their separate session config. The installer preserves custom presets.
 

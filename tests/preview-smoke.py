@@ -138,6 +138,15 @@ for_window [app_id="rounded-test"] floating enable, border pixel 2, resize set w
         for style in ("none", "normal 2", "pixel 2"):
             command(f"{selector} border {style}")
             check_shape()
+        for key, gap in zip(range(4, 8), (0, 8, 16, 24)):
+            line = next(line for line in (ROOT / "contrib/appearance.conf").read_text().splitlines()
+                        if line.startswith(f"bindsym Mod1+Ctrl+{key} "))
+            command(line.split(" ", 2)[2])
+            rect = window()["rect"]
+            assert rect == {"x": gap, "y": gap, "width": 800 - 2*gap,
+                            "height": 600 - 2*gap}, rect
+            check_shape()
+
         command("gaps inner 10")
         command(f"{selector} focus, split h")
         second_client = subprocess.Popen(["foot", "--app-id=tiled-neighbor",
