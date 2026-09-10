@@ -263,11 +263,21 @@ void container_update_corner_clip(struct sway_container *con, int width, int hei
 		return;
 	}
 	struct sway_container_state *state = &con->current;
-	bool rounded = config->floating_corner_radius > 0 &&
-		container_is_current_floating(con) &&
+	int configured_radius = container_is_current_floating(con) ?
+		config->floating_corner_radius : config->tiled_corner_radius;
+	// Group fullscreen and floating state lives on the ancestor, not the leaf.
+	for (struct sway_container *parent = state->parent; parent;
+			parent = parent->current.parent) {
+		if (container_is_current_floating(parent) ||
+				parent->current.fullscreen_mode != FULLSCREEN_NONE) {
+			configured_radius = 0;
+			break;
+		}
+	}
+	bool rounded = configured_radius > 0 &&
 		state->fullscreen_mode == FULLSCREEN_NONE && state->border != B_CSD;
-	// Restore straight borders when a previously rounded window is tiled or
-	// switches border style. The top border is controlled by arrange_container.
+	// Restore straight borders when rounding is disabled or the border style
+	// changes. The top border is controlled by arrange_container.
 	wlr_scene_node_set_enabled(&con->border.bottom->node, true);
 	wlr_scene_node_set_enabled(&con->border.left->node, true);
 	wlr_scene_node_set_enabled(&con->border.right->node, true);
@@ -277,7 +287,7 @@ void container_update_corner_clip(struct sway_container *con, int width, int hei
 		wlr_scene_node_set_clip(&con->scene_tree->node, NULL);
 		return;
 	}
-	int radius = fmin(config->floating_corner_radius, fmin(width / 2, height / 2));
+	int radius = fmin(configured_radius, fmin(width / 2, height / 2));
 	pixman_region32_t outer, inner, border;
 	pixman_region32_init(&outer);
 	pixman_region32_init(&inner);

@@ -47,6 +47,7 @@ for_window [app_id="rounded-test"] floating enable, border pixel 2, resize set w
     compositor = subprocess.Popen([ROOT / "build/sway/sway", "-c", config],
                                   env=env, stdout=log, stderr=log)
     client = None
+    second_client = None
     try:
         sock = wait_for(lambda: next(runtime.glob("sway-ipc.*.sock"), None))
         display = wait_for(lambda: next((p for p in runtime.glob("wayland-*")
@@ -131,6 +132,33 @@ for_window [app_id="rounded-test"] floating enable, border pixel 2, resize set w
             assert before.getpixel((1, 1)) == after.getpixel((1, 1))
             command("floating_corner_radius 20")
 
+        command("tiled_corner_radius 20")
+        for value in ("-1", "1001", "abc", "1.5"):
+            command("tiled_corner_radius " + value, success=False)
+        for style in ("none", "normal 2", "pixel 2"):
+            command(f"{selector} border {style}")
+            check_shape()
+        command("gaps inner 10")
+        command(f"{selector} focus, split h")
+        second_client = subprocess.Popen(["foot", "--app-id=tiled-neighbor",
+                                          "-o", "colors.background=445566", "--",
+                                          "sh", "-c", "sleep 300"],
+                                         env=env, stdout=log, stderr=log)
+        wait_for(lambda: any(n.get("app_id") == "tiled-neighbor"
+                             for n in nodes(ipc("-t", "get_tree"))))
+        command(f"{selector} focus")
+        assert window()["type"] == "con" and window()["rect"]["width"] < 500
+        check_shape()
+        command(f"{selector} resize grow width 40 px")
+        check_shape()
+        command(f"{selector} fullscreen enable")
+        before = snapshot()
+        command("tiled_corner_radius 0")
+        assert list(before.getdata()) == list(snapshot().getdata())
+        command("tiled_corner_radius 20")
+        command(f"{selector} fullscreen disable")
+        check_shape()
+
         command(f"{selector} floating enable, resize set width 500 px height 350 px, move position center")
         check_shape()
         command("output HEADLESS-1 scale 1.5")
@@ -154,6 +182,9 @@ for_window [app_id="rounded-test"] floating enable, border pixel 2, resize set w
         print(log.read())
         raise
     finally:
+        if second_client is not None:
+            second_client.terminate()
+            second_client.wait(timeout=10)
         if client is not None:
             client.terminate()
             client.wait(timeout=10)

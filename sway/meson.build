@@ -58,6 +58,7 @@ sway_sources = files(
 	'commands/exec_always.c',
 	'commands/floating.c',
 	'commands/floating_corner_radius.c',
+	'commands/tiled_corner_radius.c',
 	'commands/floating_minmax_size.c',
 	'commands/floating_modifier.c',
 	'commands/focus.c',

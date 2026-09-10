@@ -4,8 +4,9 @@
 
 This fork is based on **Sway 1.12** with a pinned private build of **wlroots
 0.20.2**. `floating_corner_radius 20` rounds individual floating windows;
-`floating_corner_radius 0` restores stock rendering. Pixel borders follow the
-curve. Tiled/fullscreen windows, floating groups, client-side decorations, and
+`tiled_corner_radius 20` rounds tiled windows without changing the layout.
+Set either radius to 0 to disable it. Pixel borders follow the curve.
+Fullscreen windows, floating groups, client-side decorations, and
 popups retain their normal behavior. The first Sway 1.9 prototype is preserved
 on the `prototype-1.9` branch.
 
@@ -85,8 +86,8 @@ desktop because your normal startup commands may affect that session.
 
 This is the same Linux account, not a VM or a separate profile. Files, folders,
 installed apps, and their settings are shared and remain in place. Changes to
-those shared settings affect both sessions. Rounded corners currently apply
-only to floating windows; your existing tiling behavior is preserved.
+those shared settings affect both sessions. Rounded corners apply to both tiled and floating windows; your existing
+tiling behavior is preserved.
 
 **[English][en]** - [عربي][ar] - [Azərbaycanca][az] - [Česky][cs] - [Deutsch][de] - [Dansk][dk] - [Español][es] - [Français][fr] - [ქართული][ge] - [Ελληνικά][gr] - [हिन्दी][hi] - [Magyar][hu] - [فارسی][ir] - [Italiano][it] - [日本語][ja] - [한국어][ko] - [Nederlands][nl] - [Norsk][no] - [Polski][pl] - [Português][pt] - [Română][ro] - [Русский][ru] - [Српски][sr] - [Svenska][sv] - [Türkçe][tr] - [Українська][uk] - [中文-简体][zh-CN] - [中文-繁體][zh-TW]
 
