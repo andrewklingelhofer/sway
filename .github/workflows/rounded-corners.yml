@@ -1,0 +1,23 @@
+name: Rounded corners
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential meson ninja-build pkg-config wayland-protocols \
+            libwlroots-dev libpcre2-dev libjson-c-dev libpango1.0-dev libcairo2-dev \
+            libgdk-pixbuf-2.0-dev libevdev-dev libinput-dev libxcb-ewmh-dev scdoc \
+            bison libffi-dev libexpat1-dev libxml2-dev libwacom-dev foot grim python3-pil
+      - run: contrib/build-preview
+      - run: python3 tests/preview-smoke.py
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: sway-1.12-test-results
+          path: |
+            build/meson-logs/testlog.txt

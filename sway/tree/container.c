@@ -15,6 +15,7 @@
 #include "sway/scene_descriptor.h"
 #include "sway/sway_text_node.h"
 #include "sway/output.h"
+#include "sway/rounded.h"
 #include "sway/server.h"
 #include "sway/tree/arrange.h"
 #include "sway/tree/view.h"
@@ -91,6 +92,10 @@ struct sway_container *container_create(struct sway_view *view) {
 		c->border.bottom = alloc_rect_node(c->border.tree, &failed);
 		c->border.left = alloc_rect_node(c->border.tree, &failed);
 		c->border.right = alloc_rect_node(c->border.tree, &failed);
+		c->rounded_border = alloc_rect_node(c->scene_tree, &failed);
+		if (c->rounded_border) {
+			wlr_scene_node_set_enabled(&c->rounded_border->node, false);
+		}
 	}
 
 	if (!failed && !scene_descriptor_assign(&c->scene_tree->node,
@@ -239,6 +244,7 @@ void container_update(struct sway_container *con) {
 		scene_rect_set_color(con->border.bottom, bottom, alpha);
 		scene_rect_set_color(con->border.left, colors->child_border, alpha);
 		scene_rect_set_color(con->border.right, right, alpha);
+		scene_rect_set_color(con->rounded_border, colors->child_border, alpha);
 	}
 
 	if (con->title_bar.title_text) {
@@ -250,6 +256,56 @@ void container_update(struct sway_container *con) {
 		sway_text_node_set_color(con->title_bar.marks_text, colors->text);
 		sway_text_node_set_background(con->title_bar.marks_text, colors->background);
 	}
+}
+
+void container_update_corner_clip(struct sway_container *con, int width, int height) {
+	if (!con->view) {
+		return;
+	}
+	struct sway_container_state *state = &con->current;
+	bool rounded = config->floating_corner_radius > 0 &&
+		container_is_current_floating(con) &&
+		state->fullscreen_mode == FULLSCREEN_NONE && state->border != B_CSD;
+	// Restore straight borders when a previously rounded window is tiled or
+	// switches border style. The top border is controlled by arrange_container.
+	wlr_scene_node_set_enabled(&con->border.bottom->node, true);
+	wlr_scene_node_set_enabled(&con->border.left->node, true);
+	wlr_scene_node_set_enabled(&con->border.right->node, true);
+	wlr_scene_node_set_enabled(&con->rounded_border->node, false);
+	wlr_scene_node_set_clip(&con->content_tree->node, NULL);
+	if (!rounded) {
+		wlr_scene_node_set_clip(&con->scene_tree->node, NULL);
+		return;
+	}
+	int radius = fmin(config->floating_corner_radius, fmin(width / 2, height / 2));
+	pixman_region32_t outer, inner, border;
+	pixman_region32_init(&outer);
+	pixman_region32_init(&inner);
+	pixman_region32_init(&border);
+	rounded_rect_region(&outer, 0, 0, width, height, radius);
+	wlr_scene_node_set_clip(&con->scene_tree->node, &outer);
+	if (state->border == B_PIXEL) {
+		int thickness = state->border_thickness;
+		int left = state->border_left ? thickness : 0;
+		int top = state->border_top ? thickness : 0;
+		int right = state->border_right ? thickness : 0;
+		int bottom = state->border_bottom ? thickness : 0;
+		rounded_rect_region(&inner, left, top, width - left - right,
+			height - top - bottom, fmax(0, radius - thickness));
+		pixman_region32_intersect(&inner, &inner, &outer);
+		pixman_region32_subtract(&border, &outer, &inner);
+		wlr_scene_node_set_clip(&con->content_tree->node, &inner);
+		wlr_scene_node_set_enabled(&con->border.top->node, false);
+		wlr_scene_node_set_enabled(&con->border.bottom->node, false);
+		wlr_scene_node_set_enabled(&con->border.left->node, false);
+		wlr_scene_node_set_enabled(&con->border.right->node, false);
+		wlr_scene_rect_set_size(con->rounded_border, width, height);
+		wlr_scene_node_set_clip(&con->rounded_border->node, &border);
+		wlr_scene_node_set_enabled(&con->rounded_border->node, true);
+	}
+	pixman_region32_fini(&border);
+	pixman_region32_fini(&inner);
+	pixman_region32_fini(&outer);
 }
 
 void container_update_itself_and_parents(struct sway_container *con) {

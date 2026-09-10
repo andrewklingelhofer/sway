@@ -1,0 +1,71 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+root=$PWD
+prefix="$root/build-deps"
+mkdir -p subprojects
+
+fetch() {
+	name=$1 url=$2 tag=$3 revision=$4
+	if [ ! -d "subprojects/$name" ]; then
+		git clone --depth 1 --branch "$tag" "$url" "subprojects/$name"
+	fi
+	if [ "$(git -C "subprojects/$name" rev-parse HEAD)" != "$revision" ]; then
+		printf 'Unexpected revision in subprojects/%s; leaving it untouched.\n' "$name" >&2
+		exit 1
+	fi
+}
+
+fetch wlroots https://gitlab.freedesktop.org/wlroots/wlroots.git 0.20.2 d783533489e1f75d6886c2ab5c5960090ef268f8
+fetch libdrm https://gitlab.freedesktop.org/mesa/drm.git libdrm-2.4.129 a8e5e10a873f67f557dc70e5407af4553f35edd9
+fetch libxkbcommon https://github.com/xkbcommon/libxkbcommon.git xkbcommon-1.8.1 b3465081878e80ca6c11fe35c81787ec374ec15a
+fetch libdisplay-info https://gitlab.freedesktop.org/emersion/libdisplay-info.git 0.2.0 66b802d05b374cd8f388dc6ad1e7ae4f08cb3300
+fetch libinput https://gitlab.freedesktop.org/libinput/libinput.git 1.26.2 3402f380019dc4f882e1d8627029607aca3f4be6
+fetch wayland https://gitlab.freedesktop.org/wayland/wayland.git 1.24.0 736d12ac67c20c60dc406dc49bb06be878501f86
+fetch pixman https://gitlab.freedesktop.org/pixman/pixman.git pixman-0.46.4 9cc163c9da0fb4da430641715313d95a6ec466d9
+fetch wayland-protocols https://gitlab.freedesktop.org/wayland/wayland-protocols.git 1.47 88223018d1b578d0d8869866da66d9608e05f928
+
+patch="$root/patches/wlroots-scene-clip.patch"
+if ! git -C subprojects/wlroots apply --reverse --check "$patch" 2>/dev/null; then
+	git -C subprojects/wlroots apply --check "$patch"
+	git -C subprojects/wlroots apply "$patch"
+fi
+
+export PKG_CONFIG_PATH="$prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export PATH="$prefix/bin:$PATH"
+
+build_dependency() {
+	name=$1
+	shift
+	reconfigure=
+	if [ -f "build-$name/meson-private/coredata.dat" ]; then
+		reconfigure=--reconfigure
+	fi
+	meson setup $reconfigure "build-$name" "subprojects/$name" \
+		--prefix="$prefix" --libdir=lib "$@"
+	meson compile -C "build-$name"
+	meson install -C "build-$name" --no-rebuild
+}
+
+if ! pkg-config --atleast-version=1.24.0 wayland-server; then
+	build_dependency wayland -Dtests=false -Ddocumentation=false
+fi
+if ! pkg-config --atleast-version=0.43.0 pixman-1; then
+	build_dependency pixman -Dtests=disabled -Ddemos=disabled
+fi
+if ! pkg-config --atleast-version=1.26.0 libinput; then
+	build_dependency libinput -Dtests=false -Ddebug-gui=false -Ddocumentation=false
+fi
+
+reconfigure=
+if [ -f build/meson-private/coredata.dat ]; then
+	reconfigure=--reconfigure
+fi
+# wlroots needs the core libdrm library, not the vendor-specific helper libraries.
+meson setup $reconfigure build --prefix="$root/build-install" --sysconfdir=/etc \
+	--force-fallback-for=wlroots-0.20,libdrm,xkbcommon,libdisplay-info \
+	-Dlibdrm:intel=disabled -Dlibdrm:radeon=disabled -Dlibdrm:amdgpu=disabled \
+	-Dlibdrm:nouveau=disabled -Dlibdrm:vmwgfx=disabled -Dlibdrm:freedreno=disabled \
+	-Dlibdrm:vc4=disabled -Dlibdrm:etnaviv=disabled
+meson compile -C build
+meson test -C build --suite sway --print-errorlogs

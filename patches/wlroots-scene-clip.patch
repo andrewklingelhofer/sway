@@ -1,0 +1,136 @@
+diff --git a/include/wlr/types/wlr_scene.h b/include/wlr/types/wlr_scene.h
+index 6c627b1..ce6a96a 100644
+--- a/include/wlr/types/wlr_scene.h
++++ b/include/wlr/types/wlr_scene.h
+@@ -78,6 +78,8 @@ struct wlr_scene_node {
+ 
+ 	struct {
+ 		pixman_region32_t visible;
++		pixman_region32_t clip;
++		bool clip_enabled;
+ 	} WLR_PRIVATE;
+ };
+ 
+@@ -300,6 +302,13 @@ void wlr_scene_node_destroy(struct wlr_scene_node *node);
+  * implicitly disabled as well.
+  */
+ void wlr_scene_node_set_enabled(struct wlr_scene_node *node, bool enabled);
++/**
++ * Clip this node and its descendants to a region in node-local logical
++ * coordinates. The region is copied. NULL disables clipping; an empty region
++ * hides all pixels and rejects all input. Ancestor clips are intersected.
++ */
++void wlr_scene_node_set_clip(struct wlr_scene_node *node,
++	const pixman_region32_t *clip);
+ /**
+  * Set the position of the node relative to its parent.
+  */
+diff --git a/types/scene/wlr_scene.c b/types/scene/wlr_scene.c
+index 7bc8b76..9ef4379 100644
+--- a/types/scene/wlr_scene.c
++++ b/types/scene/wlr_scene.c
+@@ -77,6 +77,7 @@ static void scene_node_init(struct wlr_scene_node *node,
+ 
+ 	wl_signal_init(&node->events.destroy);
+ 	pixman_region32_init(&node->visible);
++	pixman_region32_init(&node->clip);
+ 
+ 	if (parent != NULL) {
+ 		wl_list_insert(parent->children.prev, &node->link);
+@@ -162,6 +163,7 @@ void wlr_scene_node_destroy(struct wlr_scene_node *node) {
+ 
+ 	wl_list_remove(&node->link);
+ 	pixman_region32_fini(&node->visible);
++	pixman_region32_fini(&node->clip);
+ 	free(node);
+ }
+ 
+@@ -579,6 +581,20 @@ static void restack_xwayland_surface(struct wlr_scene_node *node,
+ }
+ #endif
+ 
++static void scene_node_clip_region(struct wlr_scene_node *node,
++		int x, int y, pixman_region32_t *region) {
++	while (node) {
++		if (node->clip_enabled) {
++			pixman_region32_translate(region, -x, -y);
++			pixman_region32_intersect(region, region, &node->clip);
++			pixman_region32_translate(region, x, y);
++		}
++		x -= node->x;
++		y -= node->y;
++		node = node->parent ? &node->parent->node : NULL;
++	}
++}
++
+ static bool scene_node_update_iterator(struct wlr_scene_node *node,
+ 		int lx, int ly, void *_data) {
+ 	struct scene_update_data *data = _data;
+@@ -590,11 +606,13 @@ static bool scene_node_update_iterator(struct wlr_scene_node *node,
+ 	pixman_region32_union(&node->visible, &node->visible, data->visible);
+ 	pixman_region32_intersect_rect(&node->visible, &node->visible,
+ 		lx, ly, box.width, box.height);
++	scene_node_clip_region(node, lx, ly, &node->visible);
+ 
+ 	if (data->calculate_visibility) {
+ 		pixman_region32_t opaque;
+ 		pixman_region32_init(&opaque);
+ 		scene_node_opaque_region(node, lx, ly, &opaque);
++		scene_node_clip_region(node, lx, ly, &opaque);
+ 		pixman_region32_subtract(data->visible, data->visible, &opaque);
+ 		pixman_region32_fini(&opaque);
+ 	}
+@@ -758,6 +776,22 @@ static void scene_node_update(struct wlr_scene_node *node,
+ 	pixman_region32_fini(damage);
+ }
+ 
++void wlr_scene_node_set_clip(struct wlr_scene_node *node,
++		const pixman_region32_t *clip) {
++	if (node->clip_enabled == (clip != NULL) &&
++			(!clip || pixman_region32_equal(&node->clip, clip))) {
++		return;
++	}
++	node->clip_enabled = clip != NULL;
++	if (clip) {
++		pixman_region32_copy(&node->clip, clip);
++	} else {
++		pixman_region32_clear(&node->clip);
++	}
++	// Updating visibility damages both the old and new exposed regions.
++	scene_node_update(node, NULL);
++}
++
+ struct wlr_scene_rect *wlr_scene_rect_create(struct wlr_scene_tree *parent,
+ 		int width, int height, const float color[static 4]) {
+ 	assert(parent);
+@@ -1394,6 +1428,16 @@ static bool scene_node_at_iterator(struct wlr_scene_node *node,
+ 
+ 	double rx = at_data->lx - lx;
+ 	double ry = at_data->ly - ly;
++	double cx = rx, cy = ry;
++	for (struct wlr_scene_node *ancestor = node; ancestor;
++			ancestor = ancestor->parent ? &ancestor->parent->node : NULL) {
++		if (ancestor->clip_enabled && !pixman_region32_contains_point(
++				&ancestor->clip, floor(cx), floor(cy), NULL)) {
++			return false;
++		}
++		cx += ancestor->x;
++		cy += ancestor->y;
++	}
+ 
+ 	if (node->type == WLR_SCENE_NODE_BUFFER) {
+ 		struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+@@ -2067,6 +2111,13 @@ static enum scene_direct_scanout_result scene_entry_try_direct_scanout(
+ 	if (!scene_output->scene->direct_scanout) {
+ 		return SCANOUT_INELIGIBLE;
+ 	}
++	// A directly scanned-out client buffer would bypass the compositor clip.
++	for (struct wlr_scene_node *ancestor = node; ancestor;
++			ancestor = ancestor->parent ? &ancestor->parent->node : NULL) {
++		if (ancestor->clip_enabled) {
++			return SCANOUT_INELIGIBLE;
++		}
++	}
+ 
+ 	if (node->type != WLR_SCENE_NODE_BUFFER) {
+ 		return SCANOUT_INELIGIBLE;

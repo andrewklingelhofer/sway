@@ -459,6 +459,7 @@ static void arrange_container(struct sway_container *con,
 		wlr_scene_node_set_position(&con->view->output_handler->node,
 			-border_left, -border_top);
 		wlr_scene_buffer_set_dest_size(con->view->output_handler, width, height);
+		container_update_corner_clip(con, width, height);
 	} else {
 		// make sure to disable the title bar if the parent is not managing it
 		if (title_bar) {

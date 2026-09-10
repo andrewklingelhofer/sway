@@ -1,5 +1,54 @@
 # sway
 
+## Rounded-corner fork
+
+This fork is based on **Sway 1.12** with a pinned private build of **wlroots
+0.20.2**. `floating_corner_radius 20` rounds individual floating windows;
+`floating_corner_radius 0` restores stock rendering. Pixel borders follow the
+curve. Tiled/fullscreen windows, floating groups, client-side decorations, and
+popups retain their normal behavior. The first Sway 1.9 prototype is preserved
+on the `prototype-1.9` branch.
+
+The port uses a small wlroots scene-node clipping patch in
+`patches/wlroots-scene-clip.patch`. The same clip governs rendering, occlusion,
+and hit-testing; clipped nodes cannot bypass it through direct scanout.
+This is pixel-aligned rounding, not antialiasing, blur, or Liquid Glass.
+
+### Build on Ubuntu 24.04
+
+```sh
+sudo apt install build-essential meson ninja-build pkg-config libwlroots-dev \
+  libpcre2-dev libjson-c-dev libpango1.0-dev libcairo2-dev libgdk-pixbuf-2.0-dev \
+  libevdev-dev libinput-dev libxcb-ewmh-dev scdoc bison libffi-dev libexpat1-dev \
+  libxml2-dev libwacom-dev foot grim python3-pil
+contrib/build-preview
+python3 tests/preview-smoke.py
+```
+
+The script checks pinned dependency revisions and applies the wlroots patch.
+Libraries missing from Ubuntu's versions are built privately in `subprojects/`
+and `build-deps/`. It does not install Sway or replace system libraries.
+The system `libwlroots-dev` package above supplies base build dependencies;
+the actual compositor links to the private, patched 0.20.2 build.
+
+### Run the isolated preview
+
+```sh
+WLR_BACKENDS=wayland WLR_WL_OUTPUTS=1 build/sway/sway -c "$PWD/contrib/rounded-preview.conf"
+```
+
+The standalone config does not run your desktop startup commands. F2 opens
+Ghostty, F3 toggles fullscreen, F4 toggles floating, F5/F6 disable/enable rounding,
+and F12 exits the nested compositor. Ghostty is only needed for this visual
+preview; the automated smoke test uses Foot in a headless software-rendered
+session and never connects to your desktop's IPC socket.
+
+This preview disables Xwayland: Ubuntu 24.04's Xwayland 23.2.6 is older than
+the 24.1 compatibility threshold noted in Sway 1.10. Upgrade/test that stack
+before using this fork as your main desktop. Physical monitor/KVM behavior,
+HDR, and X11 applications have not been qualified by the nested preview.
+Keep `/usr/bin/sway` and your normal configuration unchanged until then.
+
 **[English][en]** - [عربي][ar] - [Azərbaycanca][az] - [Česky][cs] - [Deutsch][de] - [Dansk][dk] - [Español][es] - [Français][fr] - [ქართული][ge] - [Ελληνικά][gr] - [हिन्दी][hi] - [Magyar][hu] - [فارسی][ir] - [Italiano][it] - [日本語][ja] - [한국어][ko] - [Nederlands][nl] - [Norsk][no] - [Polski][pl] - [Português][pt] - [Română][ro] - [Русский][ru] - [Српски][sr] - [Svenska][sv] - [Türkçe][tr] - [Українська][uk] - [中文-简体][zh-CN] - [中文-繁體][zh-TW]
 
 sway is an [i3]-compatible [Wayland] compositor. Read the [FAQ]. Join the

@@ -710,6 +710,14 @@ The default colors are:
 *exec_always* <shell command>
 	Like *exec*, but the shell command will be executed _again_ after *reload*.
 
+*floating_corner_radius* <radius>
+	Rounds the corners of individual floating windows with server-side borders
+	or no borders. The radius is in logical pixels, from 0 to 1000, and is
+	clamped to half the smaller window dimension. The default is 0 (disabled).
+	Pixel borders follow the rounded outline. Tiled windows, floating groups,
+	fullscreen windows, client-side decorations, and popups are unchanged.
+	This uses pixel-aligned clipping, not antialiasing or background blur.
+
 *floating_maximum_size* <width> x <height>
 	Specifies the maximum size of floating windows. -1 x -1 removes the upper
 	limit. The default is 0 x 0, which will use the width and height of the

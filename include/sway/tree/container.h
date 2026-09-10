@@ -91,6 +91,7 @@ struct sway_container {
 	} border;
 
 	struct wlr_scene_tree *content_tree;
+	struct wlr_scene_rect *rounded_border;
 
 	struct sway_container_state current;
 	struct sway_container_state pending;
@@ -147,6 +148,8 @@ struct sway_container {
 };
 
 struct sway_container *container_create(struct sway_view *view);
+
+void container_update_corner_clip(struct sway_container *con, int width, int height);
 
 void container_destroy(struct sway_container *con);
 
