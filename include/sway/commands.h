@@ -123,6 +123,7 @@ sway_cmd cmd_commands;
 sway_cmd cmd_create_output;
 sway_cmd cmd_default_border;
 sway_cmd cmd_default_floating_border;
+sway_cmd cmd_floating_corner_radius;
 sway_cmd cmd_default_orientation;
 sway_cmd cmd_exec;
 sway_cmd cmd_exec_always;

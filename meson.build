@@ -269,6 +269,7 @@ if get_option('default-wallpaper')
 endif
 
 subdir('completions')
+subdir('tests')
 
 summary({
 	'xwayland': have_xwayland,

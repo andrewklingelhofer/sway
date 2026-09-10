@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include <assert.h>
 #include <drm_fourcc.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <wayland-server-core.h>
@@ -17,6 +18,7 @@
 #include "sway/input/seat.h"
 #include "sway/ipc-server.h"
 #include "sway/output.h"
+#include "sway/rounded.h"
 #include "sway/server.h"
 #include "sway/surface.h"
 #include "sway/tree/arrange.h"
@@ -303,6 +305,20 @@ static struct sway_container *floating_container_at(double lx, double ly,
 			// reverse.
 			for (int k = ws->floating->length - 1; k >= 0; --k) {
 				struct sway_container *floater = ws->floating->items[k];
+				int radius = container_current_corner_radius(floater);
+				if (radius > 0) {
+					pixman_region32_t shape;
+					pixman_region32_init(&shape);
+					rounded_rect_region(&shape, floor(floater->current.x),
+						floor(floater->current.y), floater->current.width,
+						floater->current.height, radius);
+					bool inside = pixman_region32_contains_point(&shape,
+						floor(lx), floor(ly), NULL);
+					pixman_region32_fini(&shape);
+					if (!inside) {
+						continue;
+					}
+				}
 				struct sway_container *container =
 					tiling_container_at(&floater->node, lx, ly, surface, sx, sy);
 				if (container) {
@@ -944,6 +960,15 @@ bool container_is_floating(struct sway_container *container) {
 		return true;
 	}
 	return false;
+}
+
+int container_current_corner_radius(struct sway_container *container) {
+	if (!container->view || !container_is_current_floating(container) ||
+			container->current.fullscreen_mode != FULLSCREEN_NONE ||
+			container->current.border == B_CSD) {
+		return 0;
+	}
+	return config->floating_corner_radius;
 }
 
 bool container_is_current_floating(struct sway_container *container) {

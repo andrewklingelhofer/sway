@@ -227,6 +227,8 @@ bool container_is_floating(struct sway_container *container);
  */
 bool container_is_current_floating(struct sway_container *container);
 
+int container_current_corner_radius(struct sway_container *container);
+
 /**
  * Get a container's box in layout coordinates.
  */

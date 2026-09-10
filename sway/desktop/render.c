@@ -20,6 +20,7 @@
 #include "sway/input/seat.h"
 #include "sway/layers.h"
 #include "sway/output.h"
+#include "sway/rounded.h"
 #include "sway/server.h"
 #include "sway/tree/arrange.h"
 #include "sway/tree/container.h"
@@ -927,6 +928,68 @@ static void render_workspace(struct render_context *ctx,
 	render_containers(ctx, &data);
 }
 
+static void render_rounded_floating(struct render_context *ctx,
+		struct sway_container *con, struct border_colors *colors,
+		struct wlr_texture *title_texture, struct wlr_texture *marks_texture) {
+	struct sway_container_state *state = &con->current;
+	float scale = ctx->output->wlr_output->scale;
+	struct wlr_box box = {
+		.x = floor(state->x), .y = floor(state->y),
+		.width = state->width, .height = state->height,
+	};
+	scale_box(&box, scale);
+	struct wlr_box local = box;
+	local.x -= ctx->output->lx * scale;
+	local.y -= ctx->output->ly * scale;
+	int radius = roundf(container_current_corner_radius(con) * scale);
+	radius = fmin(radius, fmin(local.width / 2, local.height / 2));
+
+	pixman_region32_t shape;
+	pixman_region32_init(&shape);
+	rounded_rect_region(&shape, local.x, local.y,
+		local.width, local.height, radius);
+	pixman_region32_intersect(&shape, &shape, ctx->output_damage);
+	struct render_context clipped = *ctx;
+	clipped.output_damage = &shape;
+
+	if (state->border == B_PIXEL) {
+		struct wlr_box content = {
+			.x = floor(state->content_x), .y = floor(state->content_y),
+			.width = state->content_width, .height = state->content_height,
+		};
+		scale_box(&content, scale);
+		content.x -= ctx->output->lx * scale;
+		content.y -= ctx->output->ly * scale;
+		pixman_region32_t inner, border;
+		pixman_region32_init(&inner);
+		pixman_region32_init(&border);
+		rounded_rect_region(&inner, content.x, content.y,
+			content.width, content.height,
+			fmax(0, radius - roundf(state->border_thickness * scale)));
+		pixman_region32_intersect(&inner, &inner, &shape);
+		pixman_region32_subtract(&border, &shape, &inner);
+
+		// Keep the border and surface disjoint: translucent windows must not
+		// be blended twice along the curved outline.
+		clipped.output_damage = &border;
+		float color[4];
+		memcpy(color, colors->child_border, sizeof(color));
+		premultiply_alpha(color, con->alpha);
+		render_rect(&clipped, &box, color);
+		clipped.output_damage = &inner;
+		render_view(&clipped, con, colors);
+		pixman_region32_fini(&border);
+		pixman_region32_fini(&inner);
+	} else {
+		if (state->border == B_NORMAL) {
+			render_titlebar(&clipped, con, floor(state->x), floor(state->y),
+				state->width, colors, title_texture, marks_texture);
+		}
+		render_view(&clipped, con, colors);
+	}
+	pixman_region32_fini(&shape);
+}
+
 static void render_floating_container(struct render_context *ctx,
 		struct sway_container *con) {
 	if (con->view) {
@@ -949,6 +1012,10 @@ static void render_floating_container(struct render_context *ctx,
 			marks_texture = con->marks_unfocused;
 		}
 
+		if (container_current_corner_radius(con) > 0) {
+			render_rounded_floating(ctx, con, colors, title_texture, marks_texture);
+			return;
+		}
 		if (con->current.border == B_NORMAL) {
 			render_titlebar(ctx, con, floor(con->current.x),
 					floor(con->current.y), con->current.width, colors,

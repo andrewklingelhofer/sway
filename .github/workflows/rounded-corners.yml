@@ -1,0 +1,25 @@
+name: Rounded corners
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential meson ninja-build pkg-config wayland-protocols \
+            libwlroots-dev libpcre2-dev libjson-c-dev libpango1.0-dev libcairo2-dev \
+            libgdk-pixbuf-2.0-dev libevdev-dev libinput-dev libxcb-ewmh-dev scdoc
+      - run: meson setup build --sysconfdir=/etc
+      - run: meson compile -C build
+      - run: meson test -C build --print-errorlogs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sway-rounded-ubuntu-24.04
+          path: |
+            build/sway/sway
+            build/swaymsg/swaymsg
+            build/meson-logs/testlog.txt

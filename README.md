@@ -1,5 +1,39 @@
 # sway
 
+## Rounded-corner prototype
+
+The `rounded-corners` branch is based on Sway 1.9 and uses the system wlroots
+0.17 library. It adds opt-in `floating_corner_radius 20` configuration for
+individual floating windows. Pixel borders follow the curve; tiled and
+fullscreen windows, popups, and client-side decorations keep upstream behavior.
+This first implementation uses pixel-aligned clipping, without antialiasing,
+blur, or changes to wlroots.
+
+On Ubuntu 24.04, install the build dependencies and build locally:
+
+```sh
+sudo apt install build-essential meson ninja-build pkg-config wayland-protocols \
+  libwlroots-dev libpcre2-dev libjson-c-dev libpango1.0-dev libcairo2-dev \
+  libgdk-pixbuf-2.0-dev libevdev-dev libinput-dev libxcb-ewmh-dev scdoc
+meson setup build --prefix="$PWD/build-install" --sysconfdir=/etc
+meson compile -C build
+meson test -C build --print-errorlogs
+```
+
+Test it as a window inside an existing Wayland session, without installing it
+or loading your normal Sway startup commands:
+
+```sh
+WLR_BACKENDS=wayland WLR_WL_OUTPUTS=1 build/sway/sway -c "$PWD/contrib/rounded-preview.conf"
+```
+
+Click inside the nested desktop and press F2 to open Ghostty, F3 to toggle
+fullscreen, F4 to toggle floating, F5/F6 to disable/enable corners, and F12 to
+exit the nested compositor. Ghostty must be installed for the F2 shortcut.
+Changes through its IPC socket must use the nested instance's `SWAYSOCK`, not
+the parent desktop's socket. Do not run `sudo ninja install` for this preview;
+the installed `/usr/bin/sway` and your normal configuration need not change.
+
 **[English][en]** - [عربي][ar] - [Česky][cs] - [Deutsch][de] - [Dansk][dk] - [Español][es] - [Français][fr] - [ქართული][ge] - [Ελληνικά][gr] - [हिन्दी][hi] - [Magyar][hu] - [فارسی][ir] - [Italiano][it] - [日本語][ja] - [한국어][ko] - [Nederlands][nl] - [Norsk][no] - [Polski][pl] - [Português][pt] - [Română][ro] - [Русский][ru] - [Svenska][sv] - [Türkçe][tr] - [Українська][uk] - [中文-简体][zh-CN] - [中文-繁體][zh-TW]
 
 sway is an [i3]-compatible [Wayland] compositor. Read the [FAQ]. Join the
