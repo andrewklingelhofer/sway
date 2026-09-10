@@ -2,7 +2,7 @@
 
 ## Rounded-corner prototype
 
-The `rounded-corners` branch is based on Sway 1.9 and uses the system wlroots
+This fork is based on Sway 1.9 and uses the system wlroots
 0.17 library. It adds opt-in `floating_corner_radius 20` configuration for
 individual floating windows. Pixel borders follow the curve; tiled and
 fullscreen windows, popups, and client-side decorations keep upstream behavior.
