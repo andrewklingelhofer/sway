@@ -100,6 +100,7 @@ for_window [app_id="rounded-test"] floating enable, border pixel 2, resize set w
             for point in ((x, y), (x+w-1, y), (x, y+h-1), (x+w-1, y+h-1)):
                 assert rounded.getpixel(point) == background.getpixel(point), (point, window())
             assert rounded.getpixel((x+w//2, y)) != background.getpixel((x+w//2, y))
+            assert rounded.getpixel((x+30, y+h-30)) != background.getpixel((x+30, y+h-30))
             return background, rounded
 
         background, rounded = check_shape()
