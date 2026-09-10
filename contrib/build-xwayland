@@ -1,0 +1,40 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+root=$PWD
+prefix="$root/build-deps"
+mkdir -p subprojects
+
+fetch() {
+	name=$1 url=$2 tag=$3 revision=$4
+	if [ ! -d "subprojects/$name" ]; then
+		git clone --depth 1 --branch "$tag" "$url" "subprojects/$name"
+	fi
+	if [ "$(git -C "subprojects/$name" rev-parse HEAD)" != "$revision" ]; then
+		printf 'Unexpected revision in subprojects/%s; leaving it untouched.\n' "$name" >&2
+		exit 1
+	fi
+}
+
+fetch xwayland https://gitlab.freedesktop.org/xorg/xserver.git xwayland-24.1.13 c5a47fda896aeefbf1d06a73e392a294344f9e1a
+fetch xorgproto https://gitlab.freedesktop.org/xorg/proto/xorgproto.git xorgproto-2024.1 67469711055522b8adb2d795b01e7ba98cb8816c
+export PKG_CONFIG_PATH="$prefix/share/pkgconfig:$prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+
+if ! pkg-config --atleast-version=1.4 presentproto || ! pkg-config --atleast-version=1.4 dri3proto; then
+	reconfigure=
+	if [ -f build-xorgproto/meson-private/coredata.dat ]; then
+		reconfigure=--reconfigure
+	fi
+	meson setup $reconfigure build-xorgproto subprojects/xorgproto --prefix="$prefix" --libdir=lib
+	meson install -C build-xorgproto
+fi
+
+reconfigure=
+if [ -f build-xwayland/meson-private/coredata.dat ]; then
+	reconfigure=--reconfigure
+fi
+meson setup $reconfigure build-xwayland subprojects/xwayland --prefix="$prefix" \
+	-Dxvfb=false -Ddocs=false -Ddevel-docs=false -Dglamor=true -Dglx=true -Ddri3=true \
+	-Dxkb_dir=/usr/share/X11/xkb -Dxkb_bin_dir=/usr/bin -Dfontrootdir=/usr/share/fonts/X11
+meson compile -C build-xwayland
+build-xwayland/hw/xwayland/Xwayland -version

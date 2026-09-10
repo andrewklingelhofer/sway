@@ -44,15 +44,49 @@ preview; the automated smoke test uses Foot in a headless software-rendered
 session and never connects to your desktop's IPC socket.
 
 This preview disables Xwayland: Ubuntu 24.04's Xwayland 23.2.6 is older than
-the 24.1 compatibility threshold noted in Sway 1.10. Upgrade/test that stack
-before using this fork as your main desktop. Physical monitor/KVM behavior,
-HDR, and X11 applications have not been qualified by the nested preview.
-Keep `/usr/bin/sway` and your normal configuration unchanged until then.
+the 24.1 compatibility threshold noted in Sway 1.10. The separate desktop
+session below uses a private Xwayland build instead. Physical monitor/KVM
+behavior and HDR still require a real login test.
 
 The earlier Ghostty 1.3.1 content-resize issue remains reproducible after
 changing the preview output's scale and rotation repeatedly. Reopen Ghostty
 after such experiments. The automated Foot-based scaling and rotation tests
 also check that the client continues filling its window.
+
+### Separate login session
+
+Build the compositor above, then build Xwayland 24.1.13 and install a separate
+session without replacing the system Sway or Xwayland:
+
+```sh
+sudo apt install libepoxy-dev libxfont-dev libxkbfile-dev libxshmfence-dev \
+  libxcvt-dev libtirpc-dev libunwind-dev libmd-dev mesa-common-dev xtrans-dev python3-gi
+contrib/build-xwayland
+contrib/install-session
+```
+
+The installer runs as your normal user and uses sudo only to register
+`/usr/local/share/wayland-sessions/sway-rounded.desktop`. With `--user-only`,
+it prepares everything and prints that final administrator command instead.
+
+* `~/.local/share/sway-rounded/releases/` contains independent runtime snapshots,
+  so rebuilding or switching Git branches cannot break the login entry.
+* `~/.local/bin/sway-rounded` starts the selected snapshot. Private libraries
+  use relative RUNPATHs, not a session-wide `LD_LIBRARY_PATH` override.
+* `~/.config/sway-rounded/config` includes your existing Sway config and adds
+  rounding and Xwayland support. Existing config files are not overwritten.
+* Session logs go to `~/.local/state/sway-rounded/`.
+
+Save your work, log out, and choose **Sway Rounded (1.12)** in the login screen's
+session selector. Choose **Sway** to return to the stock compositor. The
+installer does not log you out, restart GDM, change auto-login, or select a
+default session for you. The launcher refuses to run inside an existing
+desktop because your normal startup commands may affect that session.
+
+This is the same Linux account, not a VM or a separate profile. Files, folders,
+installed apps, and their settings are shared and remain in place. Changes to
+those shared settings affect both sessions. Rounded corners currently apply
+only to floating windows; your existing tiling behavior is preserved.
 
 **[English][en]** - [عربي][ar] - [Azərbaycanca][az] - [Česky][cs] - [Deutsch][de] - [Dansk][dk] - [Español][es] - [Français][fr] - [ქართული][ge] - [Ελληνικά][gr] - [हिन्दी][hi] - [Magyar][hu] - [فارسی][ir] - [Italiano][it] - [日本語][ja] - [한국어][ko] - [Nederlands][nl] - [Norsk][no] - [Polski][pl] - [Português][pt] - [Română][ro] - [Русский][ru] - [Српски][sr] - [Svenska][sv] - [Türkçe][tr] - [Українська][uk] - [中文-简体][zh-CN] - [中文-繁體][zh-TW]
 

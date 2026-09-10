@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""Install a private runtime snapshot and a separate GDM session entry."""
+import argparse
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import tempfile
+
+from gi.repository import Gio, GLib
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def output(*args):
+    return subprocess.check_output(args, text=True, stderr=subprocess.STDOUT).strip()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--user-only", action="store_true",
+                        help="Prepare user files and print the sudo registration command")
+    args = parser.parse_args()
+    if os.getuid() == 0:
+        parser.error("Run as your normal user; only the final desktop-file registration uses sudo")
+
+    home = Path.home()
+    prefix = home / ".local/share/sway-rounded"
+    launcher = home / ".local/bin/sway-rounded"
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME", home / ".config"))
+    base_config = config_home / "sway/config"
+    config = config_home / "sway-rounded/config"
+    desktop = prefix / "sway-rounded.desktop"
+    system_desktop = Path("/usr/local/share/wayland-sessions/sway-rounded.desktop")
+    if not base_config.is_file():
+        parser.error(f"Existing Sway config not found: {base_config}")
+
+    binaries = [Path(f"build/{name}/{name}") for name in ("sway", "swaymsg", "swaynag", "swaybar")]
+    xwayland = Path("build-xwayland/hw/xwayland/Xwayland")
+    binaries.append(xwayland)
+    for relative in binaries:
+        if not os.access(ROOT / relative, os.X_OK):
+            parser.error(f"Missing executable {relative}; run contrib/build-preview and contrib/build-xwayland first")
+
+    # Resolve current once so an update cannot mix libraries from two snapshots.
+    launcher_text = f'''#!/bin/sh
+# Managed by the Sway Rounded session installer.
+set -eu
+if [ -n "${{WAYLAND_DISPLAY:-}}" ] || [ -n "${{DISPLAY:-}}" ] || [ -n "${{WAYLAND_SOCKET:-}}" ]; then
+    echo "Start Sway Rounded from the login screen, not inside another desktop." >&2
+    exit 1
+fi
+# GDM filters display variables, but may import a stale SWAYSOCK from systemd.
+unset SWAYSOCK
+runtime=$(readlink -f {shlex.quote(str(prefix / 'current'))})
+export WLR_XWAYLAND="$runtime/{xwayland}"
+export LIBINPUT_QUIRKS_DIR="$runtime/build-deps/share/libinput"
+export PATH="$runtime/bin:$PATH"
+export XDG_CURRENT_DESKTOP=sway:wlroots
+export XDG_SESSION_DESKTOP=sway-rounded
+export XDG_SESSION_TYPE=wayland
+# Do not leak test-backend choices into a physical login session.
+unset WLR_BACKENDS WLR_HEADLESS_OUTPUTS WLR_WL_OUTPUTS
+logs="${{XDG_STATE_HOME:-$HOME/.local/state}}/sway-rounded"
+mkdir -p "$logs"
+exec "$runtime/build/sway/sway" --config {shlex.quote(str(config))} "$@" >> "$logs/session-$(date +%Y%m%d-%H%M%S)-$$.log" 2>&1
+'''
+    desktop_exec = str(launcher).replace("\\", "\\\\").replace('"', '\\"')
+    desktop_exec = desktop_exec.replace("$", "\\$").replace("`", "\\`").replace("%", "%%")
+    desktop_text = f'''[Desktop Entry]
+Name=Sway Rounded (1.12)
+Comment=Custom Sway with rounded floating windows; stock Sway remains available
+Exec="{desktop_exec}"
+TryExec={launcher}
+Type=Application
+DesktopNames=sway;wlroots
+'''
+    managed = [(launcher, launcher_text), (desktop, desktop_text)]
+    if not args.user_only:
+        managed.append((system_desktop, desktop_text))
+    for path, text in managed:
+        if path.exists() and path.read_text() != text:
+            parser.error(f"Refusing to overwrite an existing different file: {path}")
+    current = prefix / "current"
+    if current.exists() and not current.is_symlink():
+        parser.error(f"Refusing to replace a non-symlink: {current}")
+
+    versions = {"sway": output(str(ROOT / binaries[0]), "--version"),
+                "xwayland": output(str(ROOT / xwayland), "-version")}
+    releases = prefix / "releases"
+    releases.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".stage-", dir=releases) as temporary:
+        stage = Path(temporary)
+        for relative in binaries:
+            target = stage / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / relative, target)
+            libraries = output("ldd", str(ROOT / relative))
+            if "not found" in libraries:
+                raise RuntimeError(libraries)
+            # Preserve Meson's relative RUNPATH layout; no global LD_LIBRARY_PATH
+            # is exported, so applications continue using their system libraries.
+            for line in libraries.splitlines():
+                match = re.match(r"\s*(\S+) => (/.*?) \(", line)
+                if not match:
+                    continue
+                soname, source = match.groups()
+                source = Path(source).resolve()
+                if not source.is_relative_to(ROOT):
+                    continue
+                destination = stage / source.relative_to(ROOT)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if not destination.exists():
+                    shutil.copy2(source, destination)
+                alias = destination.parent / soname
+                if alias != destination and not alias.exists():
+                    alias.symlink_to(destination.name)
+
+        quirks = ROOT / "build-deps/share/libinput"
+        shutil.copytree(quirks, stage / "build-deps/share/libinput")
+        local_quirks = Path("/etc/libinput/local-overrides.quirks")
+        if local_quirks.is_file():
+            shutil.copy2(local_quirks, stage / "build-deps/share/libinput/zz-local-overrides.quirks")
+        (stage / "bin").mkdir()
+        for name in ("sway", "swaymsg", "swaynag", "swaybar"):
+            (stage / "bin" / name).symlink_to(f"../build/{name}/{name}")
+        for relative in binaries:
+            libraries = output("ldd", str(stage / relative))
+            if "not found" in libraries or str(ROOT) in libraries:
+                raise RuntimeError(f"Snapshot is not independent of the build tree:\n{libraries}")
+        if output(str(stage / binaries[0]), "--version") != versions["sway"]:
+            raise RuntimeError("Sway changed while copying the runtime snapshot")
+        if output(str(stage / xwayland), "-version") != versions["xwayland"]:
+            raise RuntimeError("Xwayland changed while copying the runtime snapshot")
+        (stage / "versions.json").write_text(json.dumps(versions, indent=2) + "\n")
+        release = releases / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+        stage.rename(release)
+
+    config.parent.mkdir(parents=True, exist_ok=True)
+    if not config.exists():
+        config.write_text("# Shared settings stay in the original config; only this session enables rounding.\n"
+                          f"include {json.dumps(str(base_config))}\n"
+                          "floating_corner_radius 20\n"
+                          "xwayland enable\n")
+    launcher.parent.mkdir(parents=True, exist_ok=True)
+    launcher.write_text(launcher_text)
+    launcher.chmod(0o755)
+    desktop.write_text(desktop_text)
+    # DesktopNames is a GDM session key, not an application-desktop-file key.
+    # Parse with GLib, as GDM does, rather than the application-only validator.
+    info = Gio.DesktopAppInfo.new_from_filename(str(desktop))
+    if info is None:
+        raise RuntimeError("Unable to parse the login-session entry")
+    valid, argv = GLib.shell_parse_argv(info.get_commandline())
+    if not valid or argv != [str(launcher)] or info.get_string("DesktopNames") != "sway;wlroots":
+        raise RuntimeError("Invalid login-session command or desktop names")
+    pending = prefix / f".current-{os.getpid()}"
+    pending.symlink_to(release.relative_to(prefix))
+    pending.replace(current)
+    command = ["sudo", "install", "-D", "-m", "644", str(desktop), str(system_desktop)]
+    print(f"Runtime installed: {release}")
+    print(f"Session config: {config}")
+    if args.user_only:
+        print("Register the login entry with:\n" + shlex.join(command))
+    else:
+        subprocess.run(command, check=True)
+        print("Registered Sway Rounded (1.12). Save your work, log out, and choose it at login.")
+
+
+if __name__ == "__main__":
+    main()
