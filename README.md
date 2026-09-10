@@ -34,6 +34,11 @@ Changes through its IPC socket must use the nested instance's `SWAYSOCK`, not
 the parent desktop's socket. Do not run `sudo ninja install` for this preview;
 the installed `/usr/bin/sway` and your normal configuration need not change.
 
+In nested testing on Ubuntu 24.04 with Ghostty 1.3.1, changing output scale and
+rotation repeatedly can leave terminal content smaller than its window. This
+also reproduces with unmodified Sway 1.9. Reopen the terminal after these display
+experiments; normal rounded-corner toggles do not require reopening it.
+
 **[English][en]** - [عربي][ar] - [Česky][cs] - [Deutsch][de] - [Dansk][dk] - [Español][es] - [Français][fr] - [ქართული][ge] - [Ελληνικά][gr] - [हिन्दी][hi] - [Magyar][hu] - [فارسی][ir] - [Italiano][it] - [日本語][ja] - [한국어][ko] - [Nederlands][nl] - [Norsk][no] - [Polski][pl] - [Português][pt] - [Română][ro] - [Русский][ru] - [Svenska][sv] - [Türkçe][tr] - [Українська][uk] - [中文-简体][zh-CN] - [中文-繁體][zh-TW]
 
 sway is an [i3]-compatible [Wayland] compositor. Read the [FAQ]. Join the
