@@ -150,6 +150,8 @@ DesktopNames=sway;wlroots
                           f"include {json.dumps(str(base_config))}\n"
                           "floating_corner_radius 20\n"
                           "tiled_corner_radius 20\n"
+                          "default_border pixel 2\n"
+                          "default_floating_border pixel 2\n"
                           "xwayland enable\n"
                           f"include {json.dumps(str(appearance))}\n")
     launcher.parent.mkdir(parents=True, exist_ok=True)

@@ -25,6 +25,8 @@ with tempfile.TemporaryDirectory(prefix="sway session test-") as directory:
     assert appearance.read_bytes() == (ROOT / "contrib/appearance.conf").read_bytes()
     appearance.write_text(appearance.read_text() + "# Keep custom presets.\n")
     presets = appearance.read_bytes()
+    assert "default_border pixel 2\n" in config.read_text()
+    assert "default_floating_border pixel 2\n" in config.read_text()
     original = base.read_bytes()
     config.write_text(config.read_text() + "# Preserve custom session settings.\n")
     custom = config.read_bytes()
