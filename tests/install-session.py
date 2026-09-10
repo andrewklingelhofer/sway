@@ -18,6 +18,7 @@ with tempfile.TemporaryDirectory(prefix="sway session test-") as directory:
     command = [ROOT / "contrib/install-session", "--user-only"]
     subprocess.run(command, env=env, check=True)
     prefix = home / ".local/share/sway-rounded"
+    assert "TryExec=" not in (prefix / "sway-rounded.desktop").read_text()
     launcher = home / ".local/bin/sway-rounded"
     config = config_home / "sway-rounded/config"
     original = base.read_bytes()

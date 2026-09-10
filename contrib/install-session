@@ -71,11 +71,12 @@ exec "$runtime/build/sway/sway" --config {shlex.quote(str(config))} "$@" >> "$lo
 '''
     desktop_exec = str(launcher).replace("\\", "\\\\").replace('"', '\\"')
     desktop_exec = desktop_exec.replace("$", "\\$").replace("`", "\\`").replace("%", "%%")
+    # GDM reads this as its greeter user, which cannot traverse a private home.
+    # Omit TryExec; Exec is launched as the authenticated user after login.
     desktop_text = f'''[Desktop Entry]
 Name=Sway Rounded (1.12)
 Comment=Custom Sway with rounded floating windows; stock Sway remains available
 Exec="{desktop_exec}"
-TryExec={launcher}
 Type=Application
 DesktopNames=sway;wlroots
 '''
